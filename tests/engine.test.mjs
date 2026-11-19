@@ -49,6 +49,37 @@ test('lane changes interpolate, a jump clears low obstacles, sliding clears over
   assert.equal(run.state.player.lane, 1);
 });
 
+test('jump poses track takeoff, apex, descent and the first running step for every hero', () => {
+  for (const hero of HEROES) {
+    const run = practice(hero.id), p = run.state.player;
+    assert.equal(p.jumpProgress, null);
+    assert.equal(p.landingProgress, null);
+    assert.equal(run.act('jump'), true);
+    assert.equal(p.jumpProgress, 0);
+    for (const progress of [.25, .5, .75]) {
+      run.update(.78 / 4);
+      assert.ok(Math.abs(p.jumpProgress - progress) < 1e-8);
+      assert.ok(Math.abs(p.jump - 4 * progress * (1 - progress)) < 1e-8);
+      assert.equal(p.landingProgress, null);
+    }
+    run.update(.78 / 4 + .08);
+    assert.equal(p.jumpProgress, null);
+    assert.equal(p.jump, 0);
+    assert.ok(Math.abs(p.landingProgress - .5) < 1e-8);
+    run.act('pause');
+    const paused = p.landingProgress;
+    run.update(.4);
+    assert.equal(p.landingProgress, paused);
+    run.act('resume');
+    assert.equal(run.act('jump'), true);
+    assert.equal(p.jumpProgress, 0);
+    assert.equal(p.landingProgress, null);
+    run.update(1);
+    assert.equal(p.jumpProgress, null);
+    assert.equal(p.landingProgress, null);
+  }
+});
+
 test('sliding mid-jump drops smoothly from the current height and pauses in midair', () => {
   for (const beforeSwipe of [.08, .39, .69]) {
     const run = practice('pasha'), p = run.state.player;
@@ -59,6 +90,7 @@ test('sliding mid-jump drops smoothly from the current height and pauses in mida
     assert.equal(run.act('slide'), true);
     assert.equal(p.jump, startHeight);
     assert.ok(p.slide > 0);
+    assert.ok(p.jumpProgress >= .5);
     assert.equal(run.act('jump'), false);
     run.update(1 / 120);
     assert.ok(p.jump > 0 && p.jump < startHeight);
@@ -75,6 +107,8 @@ test('sliding mid-jump drops smoothly from the current height and pauses in mida
       frames++;
     }
     assert.equal(p.jump, 0);
+    assert.equal(p.jumpProgress, null);
+    assert.equal(p.landingProgress, null);
     assert.ok(frames <= 15);
     if (beforeSwipe === .39) assert.ok(frames >= 12);
     assert.ok(p.slide > .68);
@@ -223,4 +257,18 @@ test('the local pursuer falls back, closes after a stumble, and catches the runn
     run.update(2);
     assert.equal(s.pursuer.pressure, 1);
   }
+});
+
+test('saved runner restores the same in-flight hero and future seeded course after a cold start', async () => {
+  const {restoreRun} = await import('../engine.js');
+  const original = createRun({worldId:'end',heroId:'pasha',seed:117});
+  original.update(1); original.act('jump'); original.act('power'); original.update(.22);
+  const saved = JSON.parse(JSON.stringify(original.snapshot()));
+  const second = restoreRun(saved);
+  assert.equal(second.state.status, 'paused');
+  assert.equal(second.state.player.jump, original.state.player.jump);
+  second.act('resume');
+  for (let i=0; i<115; i++) { original.update(.08); second.update(.08); }
+  assert.deepEqual(second.snapshot(), original.snapshot());
+  assert.equal(restoreRun({...saved,nextZ:-1}), null);
 });
