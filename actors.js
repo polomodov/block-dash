@@ -197,97 +197,20 @@ function energy(c,s) {
   }
 }
 
-// Eight anatomical rows relate the original rear views to the separately illustrated
-// slide. Both textures meet on the same moving joints, so the head moves as one piece.
-const slideFrames=new Map();
-const bodyMarks=[
-  {center:79,top:28,neck:101,hem:176,head:160,lowNeck:85},
-  {center:73,top:7,neck:75,hem:164,head:155,lowNeck:77},
-  {center:71,top:9,neck:78,hem:165,head:158,lowNeck:81},
-  {center:67,top:8,neck:83,hem:157,head:154,lowNeck:82},
-  {center:62,top:5,neck:75,hem:179,head:154,lowNeck:79},
-];
-const mix=(a,b,t)=>a+(b-a)*t;
-function curve(t){t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);}
+// The original standing figures lead into separate painted low poses through 17
+// registered frames per hero. Row pair six turns Pasha from his guitar-facing view.
 function slidePhase(remaining) {
   const age=.82-remaining;
-  return {depth:curve(age/.165)*curve(remaining/.205),age};
+  const ease=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+  return {depth:ease(age/.165)*ease(remaining/.205),age};
 }
-function crouchY(y){
-  if(y<85)return -140+(y-20)*.92;
-  if(y<150)return -80.2+(y-85)*.54;
-  if(y<205)return -45.1+(y-150)*.68;
-  return -7.7+(y-205)*.34;
-}
-function bodyGrid(idx,depth) {
-  const r=bodyMarks[idx];
-  const startEdges=[0,r.center-47,r.center-24,r.center,r.center+23,r.center+46,150];
-  const ys=[0,r.top,r.neck,(r.neck+r.hem)*.5,r.hem,203,239,250];
-  const hx=r.head,topEdges=[0,hx-47,hx-25,hx,hx+25,hx+47,256];
-  const endEdges=[topEdges,topEdges,topEdges,[0,64,107,140,165,192,256],[0,47,86,124,159,197,256],[0,45,73,107,137,193,256],[0,41,69,95,144,189,256],[0,41,69,95,144,189,256]];
-  const n=r.lowNeck;
-  const endRows=[[0,0,0,0,0,0,0],[20,20,20,20,20,20,20],[n,n,n,n,n,n,n],[111,117,112,110,117,122,122],
-    [145,145,151,151,155,193,193],[195,195,191,178,184,213,216],[241,241,241,216,202,235,241],[244,244,244,244,244,244,244]];
-  const grid=[];
-  for(let row=0;row<ys.length;row++)for(let col=0;col<startEdges.length;col++){
-    const a=[startEdges[col],ys[row]],b=[endEdges[row][col],endRows[row][col]];
-    const shift=Math.sin(depth*Math.PI);
-    const anchor=[mix(a[0]-75,(b[0]-132)*.94,depth)+3*shift*(1-row/8),mix(a[1]-250,crouchY(b[1]),depth)-2*shift*(1-row/8)];
-    grid.push({a,b,anchor});
-  }
-  return grid;
-}
-
-// Map a source triangle affinely to three posed vertices. Each small clipped draw
-// samples the original illustration, retaining the folds of the coat and the shoe soles.
-function skinTriangle(c,img,offsetX,offsetY,key,tri) {
-  const s0=tri[0][key],s1=tri[1][key],s2=tri[2][key];
-  const [a,b,d]=tri.map(v=>v.anchor);
-  const x1=s1[0]-s0[0],y1=s1[1]-s0[1],x2=s2[0]-s0[0],y2=s2[1]-s0[1];
-  const det=x1*y2-x2*y1;if(Math.abs(det)<.01)return;
-  const xx=((b[0]-a[0])*y2-(d[0]-a[0])*y1)/det,xy=(x1*(d[0]-a[0])-x2*(b[0]-a[0]))/det;
-  const yx=((b[1]-a[1])*y2-(d[1]-a[1])*y1)/det,yy=(x1*(d[1]-a[1])-x2*(b[1]-a[1]))/det;
-  c.save();c.beginPath();
-  const center=[(a[0]+b[0]+d[0])/3,(a[1]+b[1]+d[1])/3];
-  // A small overlap covers antialias seams between two texture fragments.
-  for(const [i,v] of [a,b,d].entries()){
-    const dx=v[0]-center[0],dy=v[1]-center[1],len=Math.hypot(dx,dy)||1;
-    const x=v[0]+.60*dx/len,y=v[1]+.60*dy/len;
-    if(i===0)c.moveTo(x,y);else c.lineTo(x,y);
-  }
-  c.closePath();c.clip();c.transform(xx,yx,xy,yy,a[0]-s0[0]*xx-s0[1]*xy,a[1]-s0[0]*yx-s0[1]*yy);
-  const lx=Math.max(0,Math.floor(Math.min(s0[0],s1[0],s2[0]))-2),ly=Math.max(0,Math.floor(Math.min(s0[1],s1[1],s2[1]))-2);
-  const w=Math.min(key==='a'?150:256,Math.ceil(Math.max(s0[0],s1[0],s2[0]))+2)-lx;
-  const h=Math.min(key==='a'?250:244,Math.ceil(Math.max(s0[1],s1[1],s2[1]))+2)-ly;
-  if(w>0&&h>0)c.drawImage(img,offsetX+lx,offsetY+ly,w,h,lx,ly,w,h);
-  c.restore();
-}
-
-function poseFrame(index,frame,solo=false) {
-  const k=(solo?6:index)*32+frame,known=slideFrames.get(k);if(known)return known;
-  const standing=atlas('maze-figures'),crouch=atlas('runner-slide');if(!standing||!crouch)return null;
-  const frameCount=16,p=frame/frameCount,grid=bodyGrid(index,p);
-  const layers=[];
-  for(const [sheet,key,ox,oy] of [[standing,'a',150*index,solo?0:250],[crouch,'b',256*index,0]]){
-    const layer=document.createElement('canvas');layer.width=270;layer.height=274;
-    const g=layer.getContext('2d');g.translate(135,254);
-    for(let row=0;row<7;row++)for(let col=0;col<6;col++){
-      const i=row*7+col,j=i+7;
-      skinTriangle(g,sheet,ox,oy,key,[grid[i],grid[i+1],grid[j+1]]);
-      skinTriangle(g,sheet,ox,oy,key,[grid[i],grid[j+1],grid[j]]);
-    }
-    layers.push(layer);
-  }
-  const out=document.createElement('canvas');out.width=270;out.height=274;const g=out.getContext('2d');
-  const blend=curve((p-.43)/.20);
-  g.globalAlpha=1-blend;g.drawImage(layers[0],0,0);g.globalCompositeOperation='lighter';g.globalAlpha=blend;g.drawImage(layers[1],0,0);
-  slideFrames.set(k,out);return out;
-}
-
 function drawSlide(c,s,idx,slide,solo) {
-  const art=poseFrame(idx,Math.round(slide.depth*16),solo);if(!art)return false;
-  const depth=slide.depth,age=slide.age;
-  c.save();c.rotate(depth*.014*Math.sin(age*9));c.drawImage(art,-135/250,-254/250,270/250,274/250);
+  const sheet=atlas('runner-slide');if(!sheet)return false;
+  const {depth,age}=slide,frame=Math.round(depth*16);
+  const sw=sheet.naturalWidth/9,sh=sheet.naturalHeight/12;
+  c.save();c.rotate(depth*.014*Math.sin(age*9));
+  c.drawImage(sheet,(frame%9)*sw,((solo?5:idx)*2+Math.floor(frame/9))*sh,sw,sh,
+    -135/250,-254/250,270/250,274/250);
   if(solo){
     // In the slide Pasha turns away and swings the instrument onto his shoulder strap.
     c.save();c.translate(-.075*depth,-.39+.084*depth);c.rotate(depth*(-.36+Math.sin(s.time*14)*.035));
