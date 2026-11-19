@@ -1,6 +1,7 @@
 import { HEROES, WORLDS } from './worlds.js';
-import { createRun } from './engine.js';
-import { drawRun } from './renderer.js';
+import { saveGame, clearSavedGame, addResult, bindProgress } from './progress.js';
+import { createRun, restoreRun } from './engine.js?v=jump-1';
+import { drawRun } from './renderer.js?v=jump-1';
 import { playSound, playSolo, setSoundEnabled, stopSolo } from './audio.js';
 
 const byId = id => document.getElementById(id);
@@ -15,6 +16,7 @@ const worldIds = WORLDS.map(world => world.id);
 let world = WORLDS.find(world => world.id === query.get('level')) || WORLDS[0];
 let hero = HEROES.find(hero => hero.id === query.get('hero')) || HEROES[0];
 let run, frame, lastTime, gesture;
+let nextSave = 0;
 let sound = false, resumeAfterHelp = false;
 const bests = new Map();
 
@@ -139,19 +141,24 @@ function animate(now) {
   if (s.status === 'over') {
     stopSolo();
     playSound('over');
+    addResult({hero:hero.id, level:world.id, distance:s.distance, gems:s.gems, lives:s.lives, outcome:'over'});
     showResult();
     return;
   }
+  if (s.time >= nextSave) { saveGame(run.snapshot()); nextSave=s.time+1; }
   if (s.lives < lives) playSound('hit');
   else if (s.gems > gems) playSound('gem');
   frame = requestAnimationFrame(animate);
 }
 
-function start() {
+function start(restored = null) {
+  if (!restored?.state) restored = null;
   stopLoop();
   stopSolo();
   if (dialog.open) dialog.close();
-  run = createRun({worldId:world.id, heroId:hero.id});
+  run = restored || createRun({worldId:world.id, heroId:hero.id});
+  nextSave=run.state.time + 1;
+  saveGame(run.snapshot());
   bests.set(world.id, Math.max(bests.get(world.id) || 0,readBest(world.id)));
   syncMode();
   lobby.hidden = true;
@@ -162,7 +169,7 @@ function start() {
   board.focus({preventScroll:true});
   drawRun(board,run.state);
   updateHud();
-  frame = requestAnimationFrame(animate);
+  if (restored) showResult(); else frame = requestAnimationFrame(animate);
 }
 
 function showResult() {
@@ -185,6 +192,7 @@ function showResult() {
 function pause() {
   if (!run?.act('pause')) return;
   stopSolo();
+  saveGame(run.snapshot());
   showResult();
 }
 
@@ -202,6 +210,7 @@ function returnToLobby() {
   stopLoop();
   stopSolo();
   saveBest();
+  if (run && run.state.status !== 'over') saveGame(run.snapshot());
   if (dialog.open) dialog.close();
   run = undefined;
   syncMode();
@@ -245,7 +254,7 @@ byId('sound').addEventListener('click', async () => {
 byId('help').addEventListener('click',() => {
   resumeAfterHelp = run?.state.status === 'playing';
   if (resumeAfterHelp) {
-    run.act('pause');stopSolo();stopLoop();saveBest();syncMode();updateHud();
+    run.act('pause');stopSolo();stopLoop();saveBest();saveGame(run.snapshot());syncMode();updateHud();
   }
   help.showModal();
 });
@@ -310,3 +319,15 @@ const boardObserver = new ResizeObserver(() => {
   if (run && run.state.status !== 'playing' && !arena.hidden) drawRun(board,run.state);
 });
 boardObserver.observe(board);
+
+bindProgress({onResume(saved) {
+  const restored = restoreRun(saved);
+  if (!restored) { clearSavedGame(); return false; }
+  world = WORLDS.find(w=>w.id===saved.level);
+  hero = HEROES.find(h=>h.id===saved.hero);
+  byId('levels').querySelector('input[value="'+world.id+'"]').checked=true;
+  byId('heroes').querySelector('input[value="'+hero.id+'"]').checked=true;
+  selectCard(world,true);
+  start(restored);
+  return true;
+}});

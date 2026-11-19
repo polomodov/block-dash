@@ -1,5 +1,5 @@
-import { backdrop, drawTrack, projection, scenery, themes } from './scene-art.js';
-import { runner, pursuer, trackObject } from './actors.js';
+import { backdrop, drawTrack, projection, scenery, themes } from './scene-art.js?v=jump-1';
+import { runner, pursuer, trackObject } from './actors.js?v=jump-1';
 import { drawDragon } from './dragon-art.js';
 
 function skyDragon(c,v,s) {

@@ -19,6 +19,11 @@
   <link rel="stylesheet" href="./styles.css">
   <link rel="preload" href="./assets/runner-cover.webp" as="image">
   <title>Блок Экспресс</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./assets/app-192.png">
+  <meta name="apple-mobile-web-app-title" content="Раннер">
+  <link rel="stylesheet" href="./offline.css">
+  <script type="module" src="./offline.js"></script>
 </head>
 <body data-mode="lobby">
   <header class="topbar">
@@ -52,7 +57,18 @@
         <legend><i class="person-icon" aria-hidden="true"></i>Выбери героя</legend>
         <div id="heroes" class="hero-list"></div>
       </fieldset>
-      <div class="related"><span>Другие игры</span><a href="https://games.polomodov.tech/block-maze/">Лабиринт</a><a href="https://games.polomodov.tech/block-jump/">Платформер</a></div>
+      <div class="related"><span>Другие игры</span><a href="https://games.polomodov.tech/block-maze/">Лабиринт</a><a href="https://games.polomodov.tech/block-jump/">Платформер</a><a href="https://games.polomodov.tech/block-playroom/">Семейная игротека</a></div>
+      <section id="offline-tools" aria-label="Офлайн и сохранения">
+        <div class="offline-line">
+          <span id="offline-status" role="status">Подготовка к игре офлайн…</span>
+          <button type="button" id="offline-retry" hidden>Повторить загрузку</button>
+          <button type="button" id="install-game" hidden>Установить игру</button>
+        </div>
+        <button type="button" id="continue-saved" hidden>Продолжить партию</button>
+        <p id="save-notice" role="status" hidden>Не удалось сохранить партию в памяти устройства.</p>
+        <details><summary>История игр на этом устройстве</summary><ol id="game-history"></ol></details>
+        <details><summary>Как взять игру в дорогу</summary><p>Добавь игру на экран «Домой» через меню браузера. На iPhone открой «Поделиться» → «На экран Домой». Пока есть интернет, запусти игру с новой иконки и дождись надписи «Готово к игре офлайн».</p></details>
+      </section>
     </section>
     <section id="arena" class="arena" hidden aria-labelledby="arena-title">
       <div class="arena-bar">
@@ -92,6 +108,6 @@
     <button type="button" class="primary" id="resume"></button>
     <div class="dialog-links"><button type="button" id="restart">Заново</button><button type="button" id="menu">Выбор маршрута</button></div>
   </dialog>
-  <script type="module" src="./game.js"></script>
+  <script type="module" src="./game.js?v=jump-1"></script>
 </body>
 </html>

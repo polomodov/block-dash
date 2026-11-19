@@ -1,4 +1,4 @@
-import { atlas, box, line, oval, poly } from './scene-art.js';
+import { atlas, box, line, oval, poly } from './scene-art.js?v=jump-1';
 import { drawDragonCloud, drawDragonWarning } from './dragon-art.js';
 
 const beasts=['creeper','zombie','spider','slime','skeleton','drowned','guardian','elder_guardian','witch','enderman','ghast','magma_cube','blaze','wither_skeleton','ghost','pumpkin_guard','shulker'];
@@ -219,32 +219,50 @@ function drawSlide(c,s,idx,slide,solo) {
   c.restore();return true;
 }
 
+// Poses 0–18 cover the airborne arc and 18–23 carry the landing foot back into stride.
+// A separate front-facing row keeps Pasha strumming throughout the jump.
+function drawJump(c, sheet, s, idx, solo) {
+  const {jumpProgress, landingProgress}=s.player;
+  if(!sheet || (jumpProgress==null && landingProgress==null))return false;
+  const frame=jumpProgress!=null?Math.round(jumpProgress*18):18+Math.round(landingProgress*5);
+  const sw=sheet.naturalWidth/12,sh=sheet.naturalHeight/12;
+  const row=(solo?5:idx)*2+Math.floor(frame/12);
+  c.drawImage(sheet,frame%12*sw,row*sh,sw,sh,-109/250,-257/250,172*1.28/250,199*1.28/250);
+  if(solo){
+    const tuck=jumpProgress!=null?Math.sin(jumpProgress*Math.PI):0;
+    const weight=landingProgress!=null?Math.sin(landingProgress*Math.PI):0;
+    c.save();c.translate(-.014*tuck,.035*weight);c.rotate(-.09*tuck);guitar(c,s.time);c.restore();
+  }
+  return true;
+}
+
+function runningFigure(c,sheet,idx,stride,lean,solo,time) {
+  const w=.6,sw=150,sh=250,sx=sw*idx,sy=solo?0:sh,split=.73;
+  for(let side=0;side<2;side++){
+    const swing=stride*(side?1:-1);
+    c.save();c.translate((side-.5)*w*.5,-(1-split));c.rotate(swing*.115+lean*.02);
+    c.drawImage(sheet,sx+sw*side/2,sy+sh*split,sw/2,sh*(1-split),-w/4,-.002,w/2,(1-split)*(1-.28*Math.max(0,swing)));c.restore();
+  }
+  c.drawImage(sheet,sx,sy,sw,sh*split,-w/2,-1,w,split+.004);
+  if(solo)guitar(c,time);
+}
+
 export function runner(c,v,s) {
   const p=v.project(0,s.player.x),a=s.player.jump,sliding=s.player.slide>0, active=s.powerTime>0, solo=active&&s.heroId==='pasha';
-  const h=p.unit*1.04, lift=a*h*.77, stride=Math.sin(s.distance*(active&&s.heroId==='kirill'?.94:.82)), lean=(s.player.lane-s.player.x);
+  const inJump=s.player.jumpProgress!=null || s.player.landingProgress!=null;
+  const h=p.unit*1.04,lift=a*h*.77,stride=Math.sin(s.distance*(active&&s.heroId==='kirill'?.94:.82)),lean=s.player.lane-s.player.x;
   shadow(c,p.x,p.y-h*.015,h*(.245-a*.088),h*(.068-a*.022));
   c.save();c.translate(p.x,p.y-lift+h*.022);c.scale(h,h);c.lineJoin='round';c.lineCap='round';
   if(active)energy(c,s);
   if(s.invulnerable>.01)c.globalAlpha=.68+.32*(.5+.5*Math.sin(s.time*28));
   if(s.heroId==='mom'&&active)c.globalAlpha*=.38+.12*Math.sin(s.time*6);
-  const sheet=atlas('maze-figures'),idx=family.indexOf(s.heroId);
-  c.rotate(lean*.24+((a||sliding)?0:stride*.021));
+  const sheet=atlas('maze-figures'),idx=family.indexOf(s.heroId),jumpSheet=atlas('runner-jump');
   atlas('runner-slide');
-  const slide=sliding?slidePhase(s.player.slide):null;
-  c.translate(0,-(a||sliding?0:Math.abs(stride)*.021));
+  c.rotate(lean*.24+(inJump||sliding?0:stride*.021));
+  c.translate(0,-(inJump||sliding?0:Math.abs(stride)*.021));
   if(sheet&&idx>=0){
-    if(!(slide && drawSlide(c,s,idx,slide,solo))){
-    c.save();
-    const w=.6,sw=150,sh=250,sx=sw*idx,sy=solo?0:sh,split=.73;
-    // Keep the head and coat intact; each trouser leg bends independently under its own hip.
-    for(let side=0;side<2;side++){
-      const swing=stride*(side?1:-1)*(a||sliding?.18:1);
-      c.save();c.translate((side-.5)*w*.5,-(1-split));c.rotate(swing*.115+lean*.02);
-      c.drawImage(sheet,sx+sw*side/2,sy+sh*split,sw/2,sh*(1-split),-w/4,-.002,w/2,(1-split)*(1-.28*Math.max(0,swing)));c.restore();
-    }
-    c.drawImage(sheet,sx,sy,sw,sh*split,-w/2,-1,w,split+.004);
-    if(solo)guitar(c,s.time);c.restore();
-    }
+    const posed=sliding?drawSlide(c,s,idx,slidePhase(s.player.slide),solo):drawJump(c,jumpSheet,s,idx,solo);
+    if(!posed)runningFigure(c,sheet,idx,stride,lean,solo,s.time);
   } else {box(c,0,0,.31,.5,.045,'#147f87','#50c3be','#275258');box(c,0,-.45,.26,.24,.045,'#805638','#ab7b52','#553c33');}
   if(solo){
     for(let i=0;i<4;i++){const age=(s.time*.8+i*.25)%1;note(c,(i%2?1:-1)*(.24+age*.27),-.43-age*.72,.1+age*.045,i%2?'#9fffe4':'#ffd1ec');}
