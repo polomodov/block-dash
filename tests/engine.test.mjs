@@ -272,3 +272,32 @@ test('saved runner restores the same in-flight hero and future seeded course aft
   assert.deepEqual(second.snapshot(), original.snapshot());
   assert.equal(restoreRun({...saved,nextZ:-1}), null);
 });
+
+test('damaged or tampered runner saves are rejected instead of restoring a broken run', async () => {
+  const {restoreRun} = await import('../engine.js');
+  const run = createRun({worldId:'nether',heroId:'mom',seed:42});
+  run.update(1.5);
+  const saved = JSON.parse(JSON.stringify(run.snapshot()));
+  assert.ok(restoreRun(saved));
+  const broken = [
+    {...saved, level:'moon'}, {...saved, hero:'ghost'}, {...saved, version:2},
+    {...saved, lives:0}, {...saved, lives:4}, {...saved, lane:2}, {...saved, speed:NaN},
+    {...saved, seed:-1}, {...saved, pursuer:null}, {...saved, objects:'none'},
+    {...saved, objects:[{...saved.objects[0], kind:'portal'}]},
+    {...saved, objects:Array.from({length:121}, () => saved.objects[0])},
+  ];
+  for (const bad of broken) assert.equal(restoreRun(bad), null);
+  assert.equal(restoreRun(null), null);
+});
+
+test('lane changes stop at the outer lanes and a paused run stands still', () => {
+  const run = createRun({worldId:'temple',heroId:'kirill',seed:9});
+  for (let i = 0; i < 4; i++) run.act('left');
+  assert.equal(run.state.player.lane, -1);
+  for (let i = 0; i < 4; i++) run.act('right');
+  assert.equal(run.state.player.lane, 1);
+  run.act('pause');
+  const distance = run.state.distance;
+  run.update(1);
+  assert.equal(run.state.distance, distance);
+});

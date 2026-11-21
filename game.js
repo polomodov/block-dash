@@ -1,5 +1,5 @@
 import { HEROES, WORLDS } from './worlds.js';
-import { saveGame, clearSavedGame, addResult, bindProgress } from './progress.js';
+import { beginArcadeRound, saveGame, clearSavedGame, addResult, bindProgress } from './progress.js';
 import { createRun, restoreRun } from './engine.js?v=jump-1';
 import { drawRun } from './renderer.js?v=jump-1';
 import { playSound, playSolo, setSoundEnabled, stopSolo } from './audio.js';
@@ -153,6 +153,7 @@ function animate(now) {
 
 function start(restored = null) {
   if (!restored?.state) restored = null;
+  if (!restored) beginArcadeRound();
   stopLoop();
   stopSolo();
   if (dialog.open) dialog.close();
